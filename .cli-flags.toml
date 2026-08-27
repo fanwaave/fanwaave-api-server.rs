@@ -1,17 +1,24 @@
-# flags-2-env surface for `fanwaave-api`
-[flags.config]
-env = "FANWAAVE_CONFIG"
-long = "config"
-help = "Path to TOML configuration"
+[help]
+url = "https://github.com/fanwaave/fanwaave-api-server.rs"
 
-[flags.api_base]
-env = "FANWAAVE_API_BASE"
-long = "api-base"
-help = "API HTTP base URL"
+[parse]
+allow_unknown = false
 
-[flags.json]
-env = "FANWAAVE_JSON"
-long = "json"
-switch = true
-help = "Emit JSON"
+[flags.bind]
+env = "FANWAAVE_API_BIND"
+aliases = ["bind"]
+type = "string"
+default = "127.0.0.1:8080"
+help = "HTTP bind address."
 
+[flags.tcp-bind]
+env = "FANWAAVE_API_TCP_BIND"
+aliases = ["tcp-bind"]
+type = "string"
+help = "Optional stateful TCP bind address."
+
+[flags.nats-url]
+env = "FANWAAVE_NATS_URL"
+aliases = ["nats-url"]
+type = "string"
+help = "Optional NATS URL."
