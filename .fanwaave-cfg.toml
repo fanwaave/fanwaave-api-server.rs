@@ -1,0 +1,37 @@
+version = 1
+mode = "server"
+strict = true
+
+[flags2env]
+contract = ".cli-flags.toml"
+require_audit = true
+precedence = "argv-over-env"
+
+[server]
+enabled = true
+bind_addr_binding = "bind_addr"
+
+[[env]]
+name = "bind_addr"
+key = "FANWAAVE_API_BIND"
+kind = "string"
+required = false
+secret = false
+default = "127.0.0.1:8080"
+description = "Loopback-safe default bind address for the Fanwaave API server."
+
+[[env]]
+name = "tcp_bind"
+key = "FANWAAVE_API_TCP_BIND"
+kind = "string"
+required = false
+secret = false
+description = "Optional TCP transport bind address."
+
+[[env]]
+name = "nats_url"
+key = "FANWAAVE_NATS_URL"
+kind = "url"
+required = false
+secret = true
+description = "NATS endpoint supplied only through the runtime secret environment."
