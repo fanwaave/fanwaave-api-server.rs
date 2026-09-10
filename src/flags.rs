@@ -27,13 +27,6 @@ pub fn resolve_sources() -> Result<AppliedFlags, String> {
     resolve_sources_from(&std::env::args().collect::<Vec<_>>(), std::env::vars())
 }
 
-fn resolve_from(
-    argv: &[String],
-    environment: impl IntoIterator<Item = (String, String)>,
-) -> Result<BTreeMap<String, String>, String> {
-    Ok(resolve_sources_from(argv, environment)?.merged)
-}
-
 fn resolve_sources_from(
     argv: &[String],
     environment: impl IntoIterator<Item = (String, String)>,
@@ -145,7 +138,7 @@ mod tests {
 
     #[test]
     fn unknown_options_fail_closed_without_echoing_values() {
-        let error = resolve_from(
+        let error = resolve_sources_from(
             &[
                 "fanwaave-api-server".to_owned(),
                 "--definitely-unknown=do-not-echo".to_owned(),
