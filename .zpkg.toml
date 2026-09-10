@@ -1,7 +1,46 @@
-name = "fanwaave-api-server.rs"
-kind = "api-server"
+[package]
+org = "fanwaave"
+name = "fanwaave-api-server"
 version = "0.1.0"
+description = "JSON API server for Fanwaave"
+license = "MIT"
+language = "rust"
+
+[package.repository]
+vcs = "git"
+url = "https://github.com/fanwaave/fanwaave-api-server.rs"
 
 [dependencies]
 "fanwaave/fanwaave-lib-core" = "^0.1.0"
-"fanwaave/fanwaave-orm-core" = "^0.1.0"
+"flags-2-env/flags-2-env" = "=0.3.0"
+
+[build]
+command = "cargo build --release --bin fanwaave-api-server"
+outputs = ["target/release/fanwaave-api-server"]
+
+[bin]
+fanwaave-api-server = "target/release/fanwaave-api-server"
+
+[install]
+adapter = "none"
+dir = ".vendor/.zed"
+
+[publish]
+include_readme = true
+tag_format = "v{version}"
+smoke_test = "test -x \"$ZED_PKG_TEST_TARGET/target/release/fanwaave-api-server\""
+exclude = [
+  ".env",
+  ".env.*",
+  ".direnv/**",
+  ".zed/**",
+  ".zed-pack/**",
+  ".vendor/.zed/**",
+  "target/**",
+  "tmp/**",
+  "**/*.log",
+  ".DS_Store",
+]
+
+[scripts]
+test = "cargo test --all-targets"

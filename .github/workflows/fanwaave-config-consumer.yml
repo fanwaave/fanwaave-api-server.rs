@@ -11,7 +11,7 @@ permissions:
 jobs:
   rust:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -19,3 +19,25 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Test flags-2-env precedence and Fanwaave domain config resolution
         run: cargo test --all-targets
+      - name: Cross-check package and argv metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .zpkg.toml
+          test -f .cli-flags.toml
+          test -f .fanwaave-cfg.toml
+          grep -Fq 'git = "https://github.com/flags-2-env/flags-2-env.git"' Cargo.toml
+          grep -Fq '"flags-2-env/flags-2-env" = "=0.3.0"' .zpkg.toml
+          grep -Fq 'contract = ".cli-flags.toml"' .fanwaave-cfg.toml
+          grep -Fq 'load = false' .cli-flags.toml
+          grep -Fq 'allow_unknown = false' .cli-flags.toml
+          ! grep -Fq 'github.com/ORESoftware/flags-2-env' Cargo.toml .zpkg.toml .cli-flags.toml .fanwaave-cfg.toml
+          ! grep -Fq 'FANWAAVE_NATS_URL' .cli-flags.toml
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: zed-pkg/zed-cli
+          ref: 9c6eff237de7ee926afda37bd0732d9c4667127f
+          path: .deps/zed-cli
+          persist-credentials: false
+      - name: Validate canonical Zed package manifest
+        run: cargo run --locked --quiet --manifest-path .deps/zed-cli/Cargo.toml --bin zed -- validate --manifest .zpkg.toml --json
