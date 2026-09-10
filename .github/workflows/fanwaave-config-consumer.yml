@@ -26,4 +26,4 @@ jobs:
           path: .deps/zed-cli
           persist-credentials: false
       - name: Validate canonical Zed package manifest
-        run: cargo run --locked --quiet --manifest-path .deps/zed-cli/Cargo.toml -- validate --manifest .zpkg.toml --json
+        run: cargo run --locked --quiet --manifest-path .deps/zed-cli/Cargo.toml --bin zed -- validate --manifest .zpkg.toml --json
