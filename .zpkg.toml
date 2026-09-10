@@ -21,11 +21,6 @@ outputs = ["target/release/fanwaave-api-server"]
 [bin]
 fanwaave-api-server = "target/release/fanwaave-api-server"
 
-[cli]
-flags_contract = ".cli-flags.toml"
-flags_runtime = "flags-2-env"
-primary_bin = "fanwaave-api-server"
-
 [install]
 adapter = "none"
 dir = ".vendor/.zed"
