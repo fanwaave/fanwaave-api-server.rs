@@ -11,7 +11,7 @@ permissions:
 jobs:
   rust:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -19,3 +19,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Test flags-2-env precedence and Fanwaave domain config resolution
         run: cargo test --all-targets
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: zed-pkg/zed-cli
+          ref: 9c6eff237de7ee926afda37bd0732d9c4667127f
+          path: .deps/zed-cli
+          persist-credentials: false
+      - name: Validate canonical Zed package manifest
+        run: cargo run --locked --quiet --manifest-path .deps/zed-cli/Cargo.toml -- validate --manifest .zpkg.toml --json
