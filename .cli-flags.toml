@@ -2,7 +2,7 @@
 url = "https://github.com/fanwaave/fanwaave-api-server.rs"
 
 [env]
-load = false
+files = []
 
 [parse]
 allow_unknown = false
