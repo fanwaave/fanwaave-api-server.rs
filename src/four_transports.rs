@@ -20,6 +20,7 @@
 //! operations, then hand the same `Arc` to all three. See
 //! `docs/four-transports.md`.
 
+use crate::error::TransportRuntimeError;
 use ores_transport::{
     Envelope, NatsSubjects, OperationHandler, Reply, ServeError, serve_envelope,
 };
@@ -86,32 +87,39 @@ pub async fn serve_stateful<O, T>(
 /// nothing to show for it.
 ///
 /// # Errors
-/// Any JetStream failure while establishing the streams or the consumer.
-/// Once running, per-message failures are dispositioned rather than returned:
-/// only a handler failure is redelivered, because a malformed, oversized,
-/// expired or unauthorized message fails identically forever.
+/// Returns a typed service-level JetStream error if the shared runtime cannot
+/// establish its streams/consumer. Per-message failures are dispositioned by
+/// the shared runtime and do not escape this function.
 pub async fn serve_asynchronous<O, T>(
     context: ores_transport::async_nats::jetstream::Context,
     handler: Arc<dyn OperationHandler<O, T>>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+) -> Result<(), TransportRuntimeError>
 where
     O: DeserializeOwned + Send + Sync,
     T: Serialize + Send,
 {
-    ores_transport::serve_jetstream(context, subjects(), handler).await
+    ores_transport::serve_jetstream(context, subjects(), handler)
+        .await
+        .map_err(|error| TransportRuntimeError::JetStream(error.to_string()))
 }
 
 /// Open the JetStream context for avenue 4 from `FANWAAVE_NATS_URL`.
 ///
 /// # Errors
-/// [`ores_transport::TransportError::Upstream`] if NATS is unreachable.
-pub async fn jetstream_from_env()
--> Result<Option<ores_transport::async_nats::jetstream::Context>, Box<dyn std::error::Error + Send + Sync>>
-{
-    let config = ores_transport::TransportConfig::from_env(ENV_PREFIX)?;
+/// Returns a typed config or NATS connection error; an absent NATS URL is a
+/// valid disabled-transport state and resolves to `Ok(None)`.
+pub async fn jetstream_from_env() -> Result<
+    Option<ores_transport::async_nats::jetstream::Context>,
+    TransportRuntimeError,
+> {
+    let config = ores_transport::TransportConfig::from_env(ENV_PREFIX)
+        .map_err(|error| TransportRuntimeError::Config(error.to_string()))?;
     match config.nats_url.as_deref() {
         None => Ok(None),
-        Some(url) => Ok(Some(ores_transport::connect_nats(url).await?)),
+        Some(url) => ores_transport::connect_nats(url)
+            .await
+            .map(Some)
+            .map_err(|error| TransportRuntimeError::Connect(error.to_string())),
     }
 }
 
