@@ -65,8 +65,8 @@ mod tests {
     const DOMAIN_CONFIG: &str = include_str!("../.fanwaave-cfg.toml");
 
     #[test]
-    fn domain_defaults_and_transport_environment_compose() {
-        let policy = parse_fanwaave_config(DOMAIN_CONFIG).expect("tracked domain config parses");
+    fn domain_defaults_and_transport_environment_compose() -> Result<(), String> {
+        let policy = parse_fanwaave_config(DOMAIN_CONFIG).map_err(|error| error.to_string())?;
         let ambient = BTreeMap::from([
             (
                 "FANWAAVE_API_TCP_BIND".to_owned(),
@@ -78,25 +78,30 @@ mod tests {
             ),
         ]);
         let resolved = resolve_fanwaave_config(&policy, &ambient, &BTreeMap::new())
-            .expect("tracked domain config resolves");
-        let config = ApiConfig::from_sources(&ambient, &resolved).expect("API config resolves");
+            .map_err(|error| error.to_string())?;
+        let config = ApiConfig::from_sources(&ambient, &resolved)?;
         assert_eq!(config.bind, "127.0.0.1:8080");
         assert_eq!(config.tcp_bind.as_deref(), Some("127.0.0.1:8082"));
         assert_eq!(config.nats_url.as_deref(), Some("nats://127.0.0.1:4222"));
+        Ok(())
     }
 
     #[test]
-    fn secret_nats_binding_rejects_argv_delivery() {
-        let policy = parse_fanwaave_config(DOMAIN_CONFIG).expect("tracked domain config parses");
-        let error = resolve_fanwaave_config(
+    fn secret_nats_binding_rejects_argv_delivery() -> Result<(), String> {
+        let policy = parse_fanwaave_config(DOMAIN_CONFIG).map_err(|error| error.to_string())?;
+        let resolution = resolve_fanwaave_config(
             &policy,
             &BTreeMap::new(),
             &BTreeMap::from([(
                 "FANWAAVE_NATS_URL".to_owned(),
                 "nats://user:secret@127.0.0.1:4222".to_owned(),
             )]),
-        )
-        .expect_err("secret argv must fail closed");
+        );
+        let error = match resolution {
+            Ok(_) => return Err("secret argv unexpectedly crossed the command-line boundary".into()),
+            Err(error) => error,
+        };
         assert!(error.to_string().contains("may not be supplied through argv"));
+        Ok(())
     }
 }
