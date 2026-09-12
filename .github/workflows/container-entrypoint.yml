@@ -22,5 +22,5 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Verify SOPS required-secret, literal-value, environment, and exec contracts
-        run: node --test scripts/sops-entrypoint.test.mjs
+      - name: Verify SOPS required-secret, literal-value, environment, exec, and argv-layout contracts
+        run: node --test scripts/sops-entrypoint.test.mjs scripts/container-argv.test.mjs

@@ -209,5 +209,5 @@ EXPOSE 8080
 # With no ciphertext mounted the entrypoint runs the command unchanged, so this
 # image also works where config arrives as plain environment variables.
 USER 10001:10001
-ENTRYPOINT ["/usr/local/bin/sops-entrypoint.sh"]
-CMD ["/usr/local/bin/fanwaave-api-server"]
+ENTRYPOINT ["/usr/local/bin/sops-entrypoint.sh", "/usr/local/bin/fanwaave-api-server"]
+CMD []
