@@ -226,30 +226,40 @@ fn payload_value(contact: &ContactPayload) -> Result<Value, ApiHttpError> {
 }
 
 fn parse_channel(value: &str) -> Result<ContactChannel, ApiHttpError> {
-    match value {
-        "email" => Ok(ContactChannel::Email),
-        "sms" => Ok(ContactChannel::Sms),
-        _ => Err(ApiHttpError::internal("database contains unknown contact channel")),
+    if value == "email" {
+        Ok(ContactChannel::Email)
+    } else if value == "sms" {
+        Ok(ContactChannel::Sms)
+    } else {
+        Err(ApiHttpError::internal("database contains unknown contact channel"))
     }
 }
 
 fn parse_provider(value: &str) -> Result<ContactProvider, ApiHttpError> {
-    match value {
-        "sendgrid" => Ok(ContactProvider::Sendgrid),
-        "twilio" => Ok(ContactProvider::Twilio),
-        _ => Err(ApiHttpError::internal("database contains unknown contact provider")),
+    if value == "sendgrid" {
+        Ok(ContactProvider::Sendgrid)
+    } else if value == "twilio" {
+        Ok(ContactProvider::Twilio)
+    } else {
+        Err(ApiHttpError::internal("database contains unknown contact provider"))
     }
 }
 
 fn parse_status(value: &str) -> Result<ContactJobStatus, ApiHttpError> {
-    match value {
-        "queued" => Ok(ContactJobStatus::Queued),
-        "leased" => Ok(ContactJobStatus::Leased),
-        "retry" => Ok(ContactJobStatus::Retry),
-        "sent" => Ok(ContactJobStatus::Sent),
-        "dead" => Ok(ContactJobStatus::Dead),
-        "cancelled" => Ok(ContactJobStatus::Cancelled),
-        _ => Err(ApiHttpError::internal("database contains unknown contact job status")),
+    if value == "queued" {
+        Ok(ContactJobStatus::Queued)
+    } else if value == "leased" {
+        Ok(ContactJobStatus::Leased)
+    } else if value == "retry" {
+        Ok(ContactJobStatus::Retry)
+    } else if value == "sent" {
+        Ok(ContactJobStatus::Sent)
+    } else if value == "dead" {
+        Ok(ContactJobStatus::Dead)
+    } else if value == "cancelled" {
+        Ok(ContactJobStatus::Cancelled)
+    } else {
+        Err(ApiHttpError::internal("database contains unknown contact job status"))
     }
 }
 
