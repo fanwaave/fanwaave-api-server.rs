@@ -6,7 +6,7 @@ use std::time::Duration;
 use axum::{
     extract::{DefaultBodyLimit, State},
     http::StatusCode,
-    routing::{delete, get, post},
+    routing::{get, post},
     Json, Router,
 };
 use serde_json::json;
