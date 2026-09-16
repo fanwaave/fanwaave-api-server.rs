@@ -3,7 +3,16 @@
 use fanwaave_api_server::{config::ApiConfig, flags, server};
 use fanwaave_lib_core::fanwaave_config::{parse_fanwaave_config, resolve_fanwaave_config};
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "fanwaave_api_server=info,info".into()),
+        )
+        .json()
+        .init();
+
     let applied = flags::resolve_sources().unwrap_or_else(|error| panic!("{error}"));
     let domain_text = std::fs::read_to_string(".fanwaave-cfg.toml")
         .unwrap_or_else(|error| panic!("cannot read .fanwaave-cfg.toml: {error}"));
@@ -17,5 +26,7 @@ fn main() {
     .unwrap_or_else(|error| panic!("Fanwaave domain config resolution failed: {error}"));
     let cfg = ApiConfig::from_sources(&applied.merged, &resolved)
         .unwrap_or_else(|error| panic!("Fanwaave API config resolution failed: {error}"));
-    server::run(&cfg);
+    server::run(&cfg)
+        .await
+        .unwrap_or_else(|error| panic!("Fanwaave API server failed: {error}"));
 }
