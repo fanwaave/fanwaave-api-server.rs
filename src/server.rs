@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
 
-use std::io;
 use std::time::Duration;
 
 use axum::{
@@ -14,35 +13,42 @@ use sqlx::postgres::PgPoolOptions;
 use tracing::{info, warn};
 
 use crate::config::ApiConfig;
+use crate::error::ServerError;
 use crate::routes;
 use crate::state::AppState;
 
-pub async fn run(config: &ApiConfig) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let database_url = config.database_url.as_deref().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput, "DATABASE_URL or FANWAAVE_DATABASE_URL is required")
-    })?;
-    let enqueue_secret = config.contact_enqueue_secret.clone().filter(|value| !value.trim().is_empty()).ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput, "FANWAAVE_CONTACT_ENQUEUE_SECRET is required")
-    })?;
+pub async fn run(config: &ApiConfig) -> Result<(), ServerError> {
+    let database_url = config
+        .database_url
+        .as_deref()
+        .ok_or(ServerError::Configuration(
+            "DATABASE_URL or FANWAAVE_DATABASE_URL is required",
+        ))?;
+    let enqueue_secret = config
+        .contact_enqueue_secret
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or(ServerError::Configuration(
+            "FANWAAVE_CONTACT_ENQUEUE_SECRET is required",
+        ))?;
 
     let db = PgPoolOptions::new()
         .max_connections(20)
         .acquire_timeout(Duration::from_secs(10))
         .connect(database_url)
-        .await?;
+        .await
+        .map_err(ServerError::Database)?;
 
-    // Fail closed if the canonical lib-core migration has not been applied.
     let schema_ready: Option<String> = sqlx::query_scalar(
         "SELECT to_regclass('public.contact_jobs')::text",
     )
     .fetch_one(&db)
-    .await?;
+    .await
+    .map_err(ServerError::Database)?;
     if schema_ready.is_none() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
+        return Err(ServerError::Configuration(
             "fanwaave-0002 contact schema is missing; apply fanwaave-lib-core migrations",
-        )
-        .into());
+        ));
     }
 
     let nats = match config.nats_url.as_deref() {
@@ -68,11 +74,14 @@ pub async fn run(config: &ApiConfig) -> Result<(), Box<dyn std::error::Error + S
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(&config.bind).await?;
+    let listener = tokio::net::TcpListener::bind(&config.bind)
+        .await
+        .map_err(ServerError::Io)?;
     info!(bind=%config.bind, "fanwaave API listening");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
-        .await?;
+        .await
+        .map_err(ServerError::Io)?;
     Ok(())
 }
 
