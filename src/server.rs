@@ -9,7 +9,7 @@ use axum::{
     Json, Router,
 };
 use serde_json::json;
-use sqlx::postgres::PgPoolOptions;
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use tracing::{info, warn};
 
 use crate::config::ApiConfig;
@@ -18,40 +18,64 @@ use crate::routes;
 use crate::state::AppState;
 
 pub async fn run(config: &ApiConfig) -> Result<(), ServerError> {
+    let db = connect_database(config).await?;
+    ensure_contact_schema(&db).await?;
+    let nats = connect_nats(config).await;
+    let enqueue_secret = required_enqueue_secret(config)?;
+    let app = build_router(AppState::new(db, nats, enqueue_secret));
+    let listener = tokio::net::TcpListener::bind(&config.bind)
+        .await
+        .map_err(ServerError::Io)?;
+    info!(bind=%config.bind, "fanwaave API listening");
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .map_err(ServerError::Io)
+}
+
+async fn connect_database(config: &ApiConfig) -> Result<PgPool, ServerError> {
     let database_url = config
         .database_url
         .as_deref()
         .ok_or(ServerError::Configuration(
             "DATABASE_URL or FANWAAVE_DATABASE_URL is required",
         ))?;
-    let enqueue_secret = config
+    PgPoolOptions::new()
+        .max_connections(20)
+        .acquire_timeout(Duration::from_secs(10))
+        .connect(database_url)
+        .await
+        .map_err(ServerError::Database)
+}
+
+async fn ensure_contact_schema(db: &PgPool) -> Result<(), ServerError> {
+    let schema_ready: Option<String> = sqlx::query_scalar(
+        "SELECT to_regclass('public.contact_jobs')::text",
+    )
+    .fetch_one(db)
+    .await
+    .map_err(ServerError::Database)?;
+    if schema_ready.is_some() {
+        Ok(())
+    } else {
+        Err(ServerError::Configuration(
+            "fanwaave-0002 contact schema is missing; apply fanwaave-lib-core migrations",
+        ))
+    }
+}
+
+fn required_enqueue_secret(config: &ApiConfig) -> Result<String, ServerError> {
+    config
         .contact_enqueue_secret
         .clone()
         .filter(|value| !value.trim().is_empty())
         .ok_or(ServerError::Configuration(
             "FANWAAVE_CONTACT_ENQUEUE_SECRET is required",
-        ))?;
+        ))
+}
 
-    let db = PgPoolOptions::new()
-        .max_connections(20)
-        .acquire_timeout(Duration::from_secs(10))
-        .connect(database_url)
-        .await
-        .map_err(ServerError::Database)?;
-
-    let schema_ready: Option<String> = sqlx::query_scalar(
-        "SELECT to_regclass('public.contact_jobs')::text",
-    )
-    .fetch_one(&db)
-    .await
-    .map_err(ServerError::Database)?;
-    if schema_ready.is_none() {
-        return Err(ServerError::Configuration(
-            "fanwaave-0002 contact schema is missing; apply fanwaave-lib-core migrations",
-        ));
-    }
-
-    let nats = match config.nats_url.as_deref() {
+async fn connect_nats(config: &ApiConfig) -> Option<async_nats::Client> {
+    match config.nats_url.as_deref() {
         Some(url) => match async_nats::connect(url).await {
             Ok(client) => Some(client),
             Err(error) => {
@@ -60,10 +84,11 @@ pub async fn run(config: &ApiConfig) -> Result<(), ServerError> {
             }
         },
         None => None,
-    };
+    }
+}
 
-    let state = AppState::new(db, nats, enqueue_secret);
-    let app = Router::new()
+fn build_router(state: AppState) -> Router {
+    Router::new()
         .route("/healthz", get(|| async { Json(routes::health::body()) }))
         .route("/readyz", get(ready))
         .route("/v1/contact/jobs", post(routes::contact::enqueue))
@@ -72,17 +97,7 @@ pub async fn run(config: &ApiConfig) -> Result<(), ServerError> {
             get(routes::contact::get_job).delete(routes::contact::cancel_job),
         )
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind(&config.bind)
-        .await
-        .map_err(ServerError::Io)?;
-    info!(bind=%config.bind, "fanwaave API listening");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .map_err(ServerError::Io)?;
-    Ok(())
+        .with_state(state)
 }
 
 async fn ready(State(state): State<AppState>) -> (StatusCode, Json<serde_json::Value>) {
