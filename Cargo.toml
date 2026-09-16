@@ -14,7 +14,7 @@ nats-transport = []
 [dependencies]
 async-nats = "0.42"
 axum = "0.8"
-fanwaave-lib-core = { git = "https://github.com/fanwaave/fanwaave-lib-core.git", rev = "e2f53acf49cf120934d443cc7a67e6463f9b5057" }
+fanwaave-lib-core = { git = "https://github.com/fanwaave/fanwaave-lib-core.git", rev = "6f46477b54bcbca32d6808421b5af27cfffb3703" }
 flags2env = { git = "https://github.com/flags-2-env/flags-2-env.git", rev = "b708a041531a830bd49f030250836896096e7abd" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
