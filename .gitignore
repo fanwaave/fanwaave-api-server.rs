@@ -10,8 +10,6 @@
 *.sqlite
 Cargo.lock
 
-
-
 # BEGIN ores-sops dotenv policy
 *.env
 */*.env
@@ -27,8 +25,15 @@ Cargo.lock
 
 # typespec-json-schema-validator comparison evidence (generated; never an authority)
 .typespec-json-schema-validator/
+
 # Repository-local temporary data and authorized Git worktrees
+# DEN-3956: ignore agent scratch worktrees and temp dirs (fleet policy)
 tmp
 temp
 tmp/worktrees
 temp/worktrees
+tmp/
+temp/
+.tmp/
+tmp/worktrees/
+**/tmp/worktrees/
