@@ -1,7 +1,6 @@
 //! Fail-closed argv and environment resolution through flags-2-env.
 
 use std::collections::BTreeMap;
-use std::io::Write;
 
 use flags2env::BundledFlags2Env;
 use tempfile::NamedTempFile;
@@ -31,10 +30,9 @@ fn resolve_sources_from(
     argv: &[String],
     environment: impl IntoIterator<Item = (String, String)>,
 ) -> Result<AppliedFlags, String> {
-    let mut contract = NamedTempFile::new()
+    let contract = NamedTempFile::new()
         .map_err(|error| format!("cannot create embedded flags-2-env contract: {error}"))?;
-    contract
-        .write_all(CONTRACT.as_bytes())
+    std::fs::write(contract.path(), CONTRACT)
         .map_err(|error| format!("cannot materialize embedded flags-2-env contract: {error}"))?;
     let path = contract
         .path()
@@ -52,7 +50,10 @@ fn resolve_sources_from(
         let names = parsed
             .unknown_options
             .iter()
-            .map(|option| option.split('=').next().unwrap_or_default())
+            .map(|option| match option.split_once('=') {
+                Some((name, _)) => name,
+                None => option.as_str(),
+            })
             .collect::<Vec<_>>()
             .join(", ");
         return Err(format!("unknown command-line option(s): {names}"));
@@ -70,17 +71,21 @@ fn resolve_sources_from(
         ));
     }
 
-    let mut ambient_raw = parsed.dotenv;
-    ambient_raw.extend(environment);
-    ambient_raw.extend(parsed.dotenv_overrides);
-    let ambient = ambient_raw.into_iter().collect::<BTreeMap<_, _>>();
+    let ambient = parsed
+        .dotenv
+        .into_iter()
+        .chain(environment)
+        .chain(parsed.dotenv_overrides)
+        .collect::<BTreeMap<_, _>>();
     let argv_overrides = parsed
         .provided_flags
         .into_iter()
         .collect::<BTreeMap<_, _>>();
-
-    let mut raw = ambient.clone();
-    raw.extend(argv_overrides.clone());
+    let raw = ambient
+        .iter()
+        .chain(argv_overrides.iter())
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect::<BTreeMap<_, _>>();
     let typed = parser
         .coerce::<serde_json::Map<String, serde_json::Value>, _>(&raw, Some(path))
         .map_err(|error| format!("flags-2-env typed configuration failed: {error}"))?;
@@ -102,8 +107,12 @@ fn scalar_string(name: &str, value: serde_json::Value) -> Result<String, String>
         serde_json::Value::String(value) => Ok(value),
         serde_json::Value::Bool(value) => Ok(value.to_string()),
         serde_json::Value::Number(value) => Ok(value.to_string()),
-        _ => Err(format!(
-            "flags-2-env returned a non-scalar value for {name}"
+        serde_json::Value::Null => Err(format!("flags-2-env returned null for {name}")),
+        serde_json::Value::Array(_) => Err(format!(
+            "flags-2-env returned an array for scalar binding {name}"
+        )),
+        serde_json::Value::Object(_) => Err(format!(
+            "flags-2-env returned an object for scalar binding {name}"
         )),
     }
 }
@@ -113,15 +122,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn argv_overrides_environment_without_erasing_source_provenance() {
+    fn argv_overrides_environment_without_erasing_source_provenance() -> Result<(), String> {
         let applied = resolve_sources_from(
             &[
                 "fanwaave-api-server".to_owned(),
                 "--fanwaave-api-bind=127.0.0.1:9191".to_owned(),
             ],
             [("FANWAAVE_API_BIND".to_owned(), "127.0.0.1:8080".to_owned())],
-        )
-        .expect("valid CLI");
+        )?;
         assert_eq!(
             applied.ambient.get("FANWAAVE_API_BIND").map(String::as_str),
             Some("127.0.0.1:8080")
@@ -134,19 +142,24 @@ mod tests {
             applied.merged.get("FANWAAVE_API_BIND").map(String::as_str),
             Some("127.0.0.1:9191")
         );
+        Ok(())
     }
 
     #[test]
-    fn unknown_options_fail_closed_without_echoing_values() {
-        let error = resolve_sources_from(
+    fn unknown_options_fail_closed_without_echoing_values() -> Result<(), String> {
+        let resolution = resolve_sources_from(
             &[
                 "fanwaave-api-server".to_owned(),
                 "--definitely-unknown=do-not-echo".to_owned(),
             ],
             std::iter::empty(),
-        )
-        .expect_err("unknown option");
+        );
+        let error = match resolution {
+            Ok(_) => return Err("unknown option unexpectedly passed admission".into()),
+            Err(error) => error,
+        };
         assert!(error.contains("--definitely-unknown"));
         assert!(!error.contains("do-not-echo"));
+        Ok(())
     }
 }
