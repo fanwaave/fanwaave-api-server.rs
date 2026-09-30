@@ -1,9 +1,22 @@
 #![forbid(unsafe_code)]
 
-use crate::config::ApiConfig;
+use std::sync::Arc;
 
-#[derive(Clone, Debug)]
+use sqlx::PgPool;
+
+#[derive(Clone)]
 pub struct AppState {
-    pub config: ApiConfig,
+    pub db: PgPool,
+    pub nats: Option<async_nats::Client>,
+    pub contact_enqueue_secret: Arc<str>,
 }
 
+impl AppState {
+    pub fn new(db: PgPool, nats: Option<async_nats::Client>, contact_enqueue_secret: String) -> Self {
+        Self {
+            db,
+            nats,
+            contact_enqueue_secret: Arc::from(contact_enqueue_secret),
+        }
+    }
+}

@@ -9,6 +9,8 @@ pub struct ApiConfig {
     pub bind: String,
     pub tcp_bind: Option<String>,
     pub nats_url: Option<String>,
+    pub database_url: Option<String>,
+    pub contact_enqueue_secret: Option<String>,
 }
 
 impl ApiConfig {
@@ -23,7 +25,15 @@ impl ApiConfig {
                 .cloned()
                 .unwrap_or_else(|| "127.0.0.1:8080".into()),
             tcp_bind: environment.get("FANWAAVE_API_TCP_BIND").cloned(),
-            nats_url: environment.get("FANWAAVE_NATS_URL").cloned(),
+            nats_url: environment
+                .get("FANWAAVE_NATS_URL")
+                .or_else(|| environment.get("NATS_URL"))
+                .cloned(),
+            database_url: environment
+                .get("FANWAAVE_DATABASE_URL")
+                .or_else(|| environment.get("DATABASE_URL"))
+                .cloned(),
+            contact_enqueue_secret: environment.get("FANWAAVE_CONTACT_ENQUEUE_SECRET").cloned(),
         }
     }
 
@@ -42,17 +52,25 @@ impl ApiConfig {
         let tcp_bind = match fanwaave.binding("tcp_bind").map(|binding| binding.value()) {
             Some(ConfigValue::String(value)) => Some(value.clone()),
             Some(_) => return Err("Fanwaave tcp_bind binding must resolve as a string".into()),
-            None => None,
+            None => environment.get("FANWAAVE_API_TCP_BIND").cloned(),
         };
         let nats_url = match fanwaave.binding("nats_url").map(|binding| binding.value()) {
             Some(ConfigValue::Url(value)) => Some(value.clone()),
             Some(_) => return Err("Fanwaave nats_url binding must resolve as a URL".into()),
-            None => None,
+            None => environment
+                .get("FANWAAVE_NATS_URL")
+                .or_else(|| environment.get("NATS_URL"))
+                .cloned(),
         };
         Ok(Self {
             bind,
             tcp_bind,
             nats_url,
+            database_url: environment
+                .get("FANWAAVE_DATABASE_URL")
+                .or_else(|| environment.get("DATABASE_URL"))
+                .cloned(),
+            contact_enqueue_secret: environment.get("FANWAAVE_CONTACT_ENQUEUE_SECRET").cloned(),
         })
     }
 }
@@ -65,8 +83,8 @@ mod tests {
     const DOMAIN_CONFIG: &str = include_str!("../.fanwaave-cfg.toml");
 
     #[test]
-    fn domain_defaults_and_transport_environment_compose() {
-        let policy = parse_fanwaave_config(DOMAIN_CONFIG).expect("tracked domain config parses");
+    fn domain_defaults_and_transport_environment_compose() -> Result<(), String> {
+        let policy = parse_fanwaave_config(DOMAIN_CONFIG).map_err(|error| error.to_string())?;
         let ambient = BTreeMap::from([
             (
                 "FANWAAVE_API_TCP_BIND".to_owned(),
@@ -76,27 +94,41 @@ mod tests {
                 "FANWAAVE_NATS_URL".to_owned(),
                 "nats://127.0.0.1:4222".to_owned(),
             ),
+            (
+                "DATABASE_URL".to_owned(),
+                "postgres://example.invalid/fanwaave".to_owned(),
+            ),
         ]);
         let resolved = resolve_fanwaave_config(&policy, &ambient, &BTreeMap::new())
-            .expect("tracked domain config resolves");
-        let config = ApiConfig::from_sources(&ambient, &resolved).expect("API config resolves");
+            .map_err(|error| error.to_string())?;
+        let config = ApiConfig::from_sources(&ambient, &resolved)?;
         assert_eq!(config.bind, "127.0.0.1:8080");
         assert_eq!(config.tcp_bind.as_deref(), Some("127.0.0.1:8082"));
         assert_eq!(config.nats_url.as_deref(), Some("nats://127.0.0.1:4222"));
+        assert_eq!(
+            config.database_url.as_deref(),
+            Some("postgres://example.invalid/fanwaave")
+        );
+        Ok(())
     }
 
     #[test]
-    fn secret_nats_binding_rejects_argv_delivery() {
-        let policy = parse_fanwaave_config(DOMAIN_CONFIG).expect("tracked domain config parses");
-        let error = resolve_fanwaave_config(
+    fn secret_nats_binding_rejects_argv_delivery() -> Result<(), String> {
+        let policy = parse_fanwaave_config(DOMAIN_CONFIG).map_err(|error| error.to_string())?;
+        let resolution = resolve_fanwaave_config(
             &policy,
             &BTreeMap::new(),
             &BTreeMap::from([(
                 "FANWAAVE_NATS_URL".to_owned(),
                 "nats://user:secret@127.0.0.1:4222".to_owned(),
             )]),
-        )
-        .expect_err("secret argv must fail closed");
-        assert!(error.to_string().contains("may not be supplied through argv"));
+        );
+        match resolution {
+            Err(error) => {
+                assert!(error.to_string().contains("may not be supplied through argv"));
+                Ok(())
+            }
+            Ok(_) => Err("secret argv unexpectedly resolved".to_owned()),
+        }
     }
 }
