@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: fanwaave/fanwaave-interfaces
-          ref: 0a8d68947b5686c8f772cd486018682a34f58ff1
+          ref: ac25bcb15746e16c52ea6592ee3cb1ec34a9da47
           path: .contract-authority/fanwaave-interfaces
           persist-credentials: false
 
