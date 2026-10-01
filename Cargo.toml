@@ -6,6 +6,9 @@ license = "MIT"
 description = "JSON API server for Fanwaave"
 repository = "https://github.com/fanwaave/fanwaave-api-server.rs"
 
+[package.metadata.ores]
+repository_role = "api"
+
 [features]
 default = ["tcp-transport", "nats-transport"]
 tcp-transport = []
@@ -14,8 +17,11 @@ nats-transport = []
 [dependencies]
 async-nats = "0.42"
 axum = "0.8"
+fanwaave-interfaces = { git = "https://github.com/fanwaave/fanwaave-interfaces.git", rev = "ee26e067e079618e16c76a9bd8fe54fc317caff4" }
 fanwaave-lib-core = { git = "https://github.com/fanwaave/fanwaave-lib-core.git", rev = "6f46477b54bcbca32d6808421b5af27cfffb3703" }
 flags2env = { git = "https://github.com/flags-2-env/flags-2-env.git", rev = "b708a041531a830bd49f030250836896096e7abd" }
+ores-api-docs = { git = "https://github.com/ORESoftware/api-docs.git", rev = "27dd97e23f1e06dc1a68eb2d80d83fc25d3ae24e", features = ["axum"] }
+ores-api-docs-operation-macros = { git = "https://github.com/ORESoftware/api-docs.git", rev = "27dd97e23f1e06dc1a68eb2d80d83fc25d3ae24e" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.8", default-features = false, features = ["json", "postgres", "runtime-tokio-rustls", "uuid"] }
