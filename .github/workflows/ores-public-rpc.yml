@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "Cargo.toml"
+      - ".contract-authority/**"
       - "src/routes/health.rs"
       - "src/routes/rest/**"
       - "src/routes/mod.rs"
@@ -13,6 +14,7 @@ on:
     branches: [main, dev]
     paths:
       - "Cargo.toml"
+      - ".contract-authority/**"
       - "src/routes/health.rs"
       - "src/routes/rest/**"
       - "src/routes/mod.rs"
@@ -34,15 +36,34 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      - name: Check out exact shared contract authority
+      - name: Check out exact upstream contract authority
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: fanwaave/fanwaave-interfaces
           ref: ac25bcb15746e16c52ea6592ee3cb1ec34a9da47
-          path: .contract-authority/fanwaave-interfaces
+          path: .upstream/fanwaave-interfaces
           persist-credentials: false
 
-      - name: Admit the public health peer authorities
+      - name: Verify committed authority snapshot is byte-exact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp .upstream/fanwaave-interfaces/contracts/public-health.tsp .contract-authority/fanwaave-interfaces/contracts/public-health.tsp
+          cmp .upstream/fanwaave-interfaces/schemas/public-health.schema.json .contract-authority/fanwaave-interfaces/schemas/public-health.schema.json
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          const source = JSON.parse(readFileSync(".contract-authority/fanwaave-interfaces/SOURCE.json", "utf8"));
+          assert.equal(source.schema, "fanwaave.contract-authority-snapshot/v1");
+          assert.equal(source.repository, "fanwaave/fanwaave-interfaces");
+          assert.equal(source.commit, "ac25bcb15746e16c52ea6592ee3cb1ec34a9da47");
+          assert.deepEqual(source.files, [
+            "contracts/public-health.tsp",
+            "schemas/public-health.schema.json",
+          ]);
+          NODE
+
+      - name: Admit the committed public health peer authorities
         uses: ORESoftware/typespec-json-schema-validator@69337efc11ba4ecaa90b48878c942384fc74f650
         with:
           typespec: .contract-authority/fanwaave-interfaces/contracts/public-health.tsp
