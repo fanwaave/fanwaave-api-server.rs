@@ -1,0 +1,10 @@
+{
+  "schema": "fanwaave.contract-authority-snapshot/v1",
+  "repository": "fanwaave/fanwaave-interfaces",
+  "commit": "ac25bcb15746e16c52ea6592ee3cb1ec34a9da47",
+  "files": [
+    "contracts/public-health.tsp",
+    "schemas/public-health.schema.json"
+  ],
+  "purpose": "Exact read-only authority snapshot for ores-stack RPC provenance verification; fanwaave-interfaces remains the authored contract authority."
+}
