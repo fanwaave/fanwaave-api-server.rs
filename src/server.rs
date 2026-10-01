@@ -89,7 +89,7 @@ async fn connect_nats(config: &ApiConfig) -> Option<async_nats::Client> {
 
 fn build_router(state: AppState) -> Router {
     Router::new()
-        .route("/healthz", get(|| async { Json(routes::health::body()) }))
+        .merge(routes::rest::healthz::route::router())
         .route("/readyz", get(ready))
         .route("/v1/contact/jobs", post(routes::contact::enqueue))
         .route(
