@@ -1,0 +1,93 @@
+name: ORES public RPC authority
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "src/routes/health.rs"
+      - "src/routes/rest/**"
+      - "src/routes/mod.rs"
+      - "src/server.rs"
+      - ".github/workflows/ores-public-rpc.yml"
+  push:
+    branches: [main, dev]
+    paths:
+      - "Cargo.toml"
+      - "src/routes/health.rs"
+      - "src/routes/rest/**"
+      - "src/routes/mod.rs"
+      - "src/server.rs"
+      - ".github/workflows/ores-public-rpc.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authority:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact API head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Check out exact shared contract authority
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fanwaave/fanwaave-interfaces
+          ref: 0a8d68947b5686c8f772cd486018682a34f58ff1
+          path: .contract-authority/fanwaave-interfaces
+          persist-credentials: false
+
+      - name: Admit the public health peer authorities
+        uses: ORESoftware/typespec-json-schema-validator@69337efc11ba4ecaa90b48878c942384fc74f650
+        with:
+          typespec: .contract-authority/fanwaave-interfaces/contracts/public-health.tsp
+          schema: .contract-authority/fanwaave-interfaces/schemas/public-health.schema.json
+          report: .typespec-json-schema-validator/public-health-report.json
+          sarif: .typespec-json-schema-validator/public-health.sarif
+          contract_ir: .typespec-json-schema-validator/public-health-contract-ir.json
+          output_dir: .typespec-json-schema-validator/public-health-generated
+          max_probes: "64"
+
+      - name: Verify complete public health declaration scope
+        uses: ORESoftware/typespec-json-schema-validator/actions/verify-contract-ir@69337efc11ba4ecaa90b48878c942384fc74f650
+        with:
+          contract_ir: .typespec-json-schema-validator/public-health-contract-ir.json
+          report: .typespec-json-schema-validator/public-health-report.json
+          typespec: .contract-authority/fanwaave-interfaces/contracts/public-health.tsp
+          schema: .contract-authority/fanwaave-interfaces/schemas/public-health.schema.json
+          generated_schema: .typespec-json-schema-validator/public-health-generated/typespec.generated.schema.json
+          expected_declarations: '["Fanwaave.Public.Health"]'
+
+      - name: Verify ores-stack source authority shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'repository_role = "api"' Cargo.toml
+          grep -F 'key = "fanwaave.health.get"' src/routes/rest/healthz/handlers.rs
+          grep -F 'audiences("browser", "server")' src/routes/rest/healthz/handlers.rs
+          grep -F 'scope = "regular"' src/routes/rest/healthz/handlers.rs
+          grep -F '#[ores_route(operation = handlers::get_health)]' src/routes/rest/healthz/route.rs
+          test "$(grep -Fc 'handlers::__ores_invoke_get_health(context).await' src/routes/rest/healthz/route.rs)" -eq 1
+          git diff --check
+
+      - name: Compile typed operation and HTTP adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.88.0 --profile minimal
+          cargo +1.88.0 check --all-targets
+
+      - name: Retain public RPC contract evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fanwaave-public-health-rpc-${{ github.run_id }}
+          path: .typespec-json-schema-validator/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
